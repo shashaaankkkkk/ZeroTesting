@@ -67,6 +67,8 @@ class ExecutionRunDetailSerializer(serializers.ModelSerializer):
     triggered_by_name = serializers.CharField(source="triggered_by.email", read_only=True)
     step_results = ExecutionStepResultSerializer(many=True, read_only=True)
     artifacts = ArtifactSerializer(many=True, read_only=True)
+    live_screenshot = serializers.SerializerMethodField()
+    current_step = serializers.SerializerMethodField()
 
     class Meta:
         model = ExecutionRun
@@ -79,18 +81,38 @@ class ExecutionRunDetailSerializer(serializers.ModelSerializer):
             "error_message", "celery_task_id",
             "step_results", "artifacts",
             "created_at",
+            "live_screenshot", "current_step",
         ]
+
+    def get_live_screenshot(self, obj):
+        from django.core.cache import cache
+        return cache.get(f"execution_screenshot_{obj.id}") or ""
+
+    def get_current_step(self, obj):
+        from django.core.cache import cache
+        return cache.get(f"execution_current_step_{obj.id}") or 0
 
 
 class ExecutionRunStatusSerializer(serializers.ModelSerializer):
     """Lightweight status serializer for polling."""
+    live_screenshot = serializers.SerializerMethodField()
+    current_step = serializers.SerializerMethodField()
 
     class Meta:
         model = ExecutionRun
         fields = [
             "id", "status", "total_steps", "passed_steps",
             "failed_steps", "duration_ms",
+            "live_screenshot", "current_step",
         ]
+
+    def get_live_screenshot(self, obj):
+        from django.core.cache import cache
+        return cache.get(f"execution_screenshot_{obj.id}") or ""
+
+    def get_current_step(self, obj):
+        from django.core.cache import cache
+        return cache.get(f"execution_current_step_{obj.id}") or 0
 
 
 class TriggerExecutionSerializer(serializers.Serializer):

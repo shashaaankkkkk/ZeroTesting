@@ -21,6 +21,8 @@ export interface ExecutionRun {
   step_results?: ExecutionStepResult[];
   artifacts?: Artifact[];
   created_at: string;
+  live_screenshot?: string;
+  current_step?: number;
 }
 
 export interface ExecutionStepResult {

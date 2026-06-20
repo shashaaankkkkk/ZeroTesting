@@ -51,7 +51,11 @@ class StopRecordingView(APIView):
 
         session["status"] = "stopping"
         RecorderService.update_session(session_id, session)
-        return Response({"session_id": session_id, "status": "stopping"})
+        return Response({
+            "session_id": session_id,
+            "status": "stopping",
+            "steps": session.get("steps", [])
+        })
 
 
 class RecordingStatusView(APIView):

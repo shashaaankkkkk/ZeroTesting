@@ -226,29 +226,63 @@ export default function ExecutionDetailPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Look for a video artifact */}
-                {(() => {
-                  const video = (run.artifacts || []).find((a: any) => a.artifact_type === 'video');
-                  if (video) {
-                    return (
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-semibold text-gray-700 flex items-center gap-1"><RiImageLine /> Browser Recording Video</h4>
-                        <div className="border border-gray-200 rounded-lg overflow-hidden bg-black">
-                          <video
-                            src={getTicketUrl(video.download_url, downloadTicket)}
-                            controls
-                            className="w-full h-auto object-contain max-h-[300px]"
-                          />
+                {/* Live execution browser simulator */}
+                {(run.status === 'running' || run.status === 'pending') ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-blue-600 flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-blue-600 rounded-full animate-ping" />
+                        Live Browser Viewport (Simulator)
+                      </h4>
+                      {run.current_step && run.current_step > 0 ? (
+                        <Badge className="bg-blue-50 text-blue-700 border border-blue-100 font-mono text-[9px] uppercase px-1.5 py-0.5">
+                          Running Step {run.current_step} of {run.total_steps}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className="relative border border-blue-200 rounded-xl overflow-hidden shadow-sm bg-gray-900 aspect-[16/9] flex items-center justify-center select-none">
+                      {run.live_screenshot ? (
+                        <img
+                          src={`data:image/jpeg;base64,${run.live_screenshot}`}
+                          alt="Live simulation viewport"
+                          className="w-full h-auto max-w-full block"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-xs text-blue-200 py-16">
+                          <LoadingSpinner message="Connecting to execution browser..." />
                         </div>
+                      )}
+                    </div>
+                    <div className="px-3 py-1.5 bg-blue-50/50 border border-blue-100 rounded-lg text-[10px] text-blue-600 flex justify-between">
+                      <span>Status: {run.status}</span>
+                      <span>Real-time execution updates</span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Look for a video artifact */
+                  (() => {
+                    const video = (run.artifacts || []).find((a: any) => a.artifact_type === 'video');
+                    if (video) {
+                      return (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-semibold text-gray-700 flex items-center gap-1"><RiImageLine /> Browser Recording Video</h4>
+                          <div className="border border-gray-200 rounded-lg overflow-hidden bg-black">
+                            <video
+                              src={getTicketUrl(video.download_url, downloadTicket)}
+                              controls
+                              className="w-full h-auto object-contain max-h-[300px]"
+                            />
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="py-8 text-center text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg bg-gray-50 flex flex-col items-center justify-center gap-1.5">
+                        <RiImageLine size={24} /> No browser recording video available
                       </div>
                     );
-                  }
-                  return (
-                    <div className="py-8 text-center text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg bg-gray-50 flex flex-col items-center justify-center gap-1.5">
-                      <RiImageLine size={24} /> No browser recording video available
-                    </div>
-                  );
-                })()}
+                  })()
+                )}
 
                 {/* Other artifacts (logs, timeline, etc.) */}
                 <div className="space-y-3">

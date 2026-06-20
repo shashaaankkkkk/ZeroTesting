@@ -82,6 +82,13 @@ class PlaywrightEngine:
 
     async def execute_step(self, step):
         """Execute a single automation step and return the result."""
+        # Update current step order in cache
+        try:
+            from django.core.cache import cache
+            cache.set(f"execution_current_step_{self.run.id}", step.order, 300)
+        except Exception:
+            pass
+
         start_time = time.monotonic()
         result = {
             "status": "passed",
@@ -167,6 +174,19 @@ class PlaywrightEngine:
             await self.page.screenshot(path=step_screenshot)
             result["screenshot_path"] = step_screenshot
 
+            # Update live execution screenshot in cache
+            try:
+                import os
+                import base64
+                from django.core.cache import cache
+                if os.path.exists(step_screenshot):
+                    with open(step_screenshot, "rb") as f:
+                        screenshot_bytes = f.read()
+                    screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                    cache.set(f"execution_screenshot_{self.run.id}", screenshot_base64, 300)
+            except Exception as ce:
+                logger.error("Failed to update cache screenshot: %s", ce)
+
         except Exception as e:
             result["status"] = "failed"
             result["error_message"] = str(e)
@@ -179,6 +199,19 @@ class PlaywrightEngine:
                 )
                 await self.page.screenshot(path=error_screenshot)
                 result["screenshot_path"] = error_screenshot
+
+                # Update live execution screenshot in cache (error path)
+                try:
+                    import os
+                    import base64
+                    from django.core.cache import cache
+                    if os.path.exists(error_screenshot):
+                        with open(error_screenshot, "rb") as f:
+                            screenshot_bytes = f.read()
+                        screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                        cache.set(f"execution_screenshot_{self.run.id}", screenshot_base64, 300)
+                except Exception:
+                    pass
             except Exception:
                 pass
 

@@ -148,7 +148,13 @@ async def _record(session_id, base_url):
             RecorderService.update_session(session_id, session)
 
         # Re-inject on navigation
-        page.on("load", lambda: page.evaluate(RECORDER_SCRIPT))
+        async def handle_load(p):
+            try:
+                await p.evaluate(RECORDER_SCRIPT)
+            except Exception as e:
+                logger.error("Failed to re-inject recorder script: %s", e)
+
+        page.on("load", handle_load)
 
         # Command queue key
         command_key = f"recorder_commands_{session_id}"

@@ -77,7 +77,9 @@ export default function PlaywrightRecorderPage() {
     mutationFn: () => recorderApi.stop(sessionId!),
     onSuccess: (res: any) => {
       setStatus('stopped');
-      setRecordedSteps(res.steps || []);
+      if (res.steps && res.steps.length > 0) {
+        setRecordedSteps(res.steps);
+      }
       setShowSaveModal(true);
       addToast('success', 'Recording stopped. Review captured steps.');
     },
