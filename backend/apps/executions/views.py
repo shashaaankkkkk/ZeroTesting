@@ -115,20 +115,63 @@ class ArtifactListView(generics.ListAPIView):
         )
 
 
+from rest_framework.permissions import AllowAny, IsAuthenticated
+
+class CreateDownloadTicketView(APIView):
+    """Create a short-lived download ticket for visual artifacts."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["Executions"])
+    def post(self, request):
+        import uuid
+        from django.core.cache import cache
+        ticket = uuid.uuid4().hex
+        cache.set(f"download_ticket:{ticket}", str(request.user.id), timeout=60)
+        return Response({"ticket": ticket})
+
+
 class ArtifactDownloadView(APIView):
     """Download an artifact file."""
+    permission_classes = [AllowAny]
 
     @extend_schema(tags=["Executions"])
     def get(self, request, pk):
+        if not request.user or not request.user.is_authenticated:
+            ticket = request.query_params.get("ticket")
+            if ticket:
+                from django.core.cache import cache
+                from django.contrib.auth import get_user_model
+                user_id = cache.get(f"download_ticket:{ticket}")
+                if user_id:
+                    User = get_user_model()
+                    try:
+                        user = User.objects.get(id=user_id)
+                        request.user = user
+                    except User.DoesNotExist:
+                        pass
+            else:
+                token = request.query_params.get("token")
+                if token:
+                    from rest_framework_simplejwt.authentication import JWTAuthentication
+                    try:
+                        validated_token = JWTAuthentication().get_validated_token(token)
+                        user = JWTAuthentication().get_user(validated_token)
+                        request.user = user
+                    except Exception:
+                        pass
+
+        if not request.user or not request.user.is_authenticated:
+            return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+
         try:
             artifact = Artifact.objects.get(
                 id=pk,
                 execution_run__project__owner=request.user,
             )
             file_path = artifact.file_path
-            # Translate path prefix if recorded in Docker context but running locally
-            if file_path.startswith("/app/media/"):
-                relative_path = file_path.replace("/app/media/", "", 1)
+            # Translate path prefix relative to media root
+            if "media/" in file_path:
+                relative_path = file_path.split("media/", 1)[1]
                 file_path = os.path.join(settings.MEDIA_ROOT, relative_path)
 
             if os.path.exists(file_path):
@@ -187,17 +230,45 @@ class RecentFailuresView(APIView):
 
 class DirectArtifactDownloadView(APIView):
     """Download an artifact by its absolute path (used for step screenshots)."""
+    permission_classes = [AllowAny]
 
     @extend_schema(tags=["Executions"])
     def get(self, request):
+        if not request.user or not request.user.is_authenticated:
+            ticket = request.query_params.get("ticket")
+            if ticket:
+                from django.core.cache import cache
+                from django.contrib.auth import get_user_model
+                user_id = cache.get(f"download_ticket:{ticket}")
+                if user_id:
+                    User = get_user_model()
+                    try:
+                        user = User.objects.get(id=user_id)
+                        request.user = user
+                    except User.DoesNotExist:
+                        pass
+            else:
+                token = request.query_params.get("token")
+                if token:
+                    from rest_framework_simplejwt.authentication import JWTAuthentication
+                    try:
+                        validated_token = JWTAuthentication().get_validated_token(token)
+                        user = JWTAuthentication().get_user(validated_token)
+                        request.user = user
+                    except Exception:
+                        pass
+
+        if not request.user or not request.user.is_authenticated:
+            return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+
         from django.conf import settings
         path_param = request.query_params.get("path")
         if not path_param:
             raise Http404("Path not specified.")
 
-        # Translate path prefix if recorded in Docker context but running locally
-        if path_param.startswith("/app/media/"):
-            relative_path = path_param.replace("/app/media/", "", 1)
+        # Translate path prefix relative to media root
+        if "media/" in path_param:
+            relative_path = path_param.split("media/", 1)[1]
             path_param = os.path.join(settings.MEDIA_ROOT, relative_path)
 
         # Resolve path and check it is within media root for security

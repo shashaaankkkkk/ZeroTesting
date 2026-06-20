@@ -17,7 +17,6 @@ const mainNavItems = [
 
 const projectNavItems = [
   { path: '', label: 'Overview', icon: RiDashboardLine },
-  { path: '/business-tests', label: 'Business Tests', icon: RiFileTextLine },
   { path: '/groups', label: 'Groups', icon: RiStackLine },
   { path: '/automation-tests', label: 'Automation Tests', icon: RiRobot2Line },
   { path: '/objects', label: 'Object Repository', icon: RiGridLine },

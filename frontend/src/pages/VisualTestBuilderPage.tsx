@@ -204,11 +204,6 @@ export default function VisualTestBuilderPage() {
             <Button
               variant="secondary"
               onClick={() => {
-                if (testCase?.business_test_case_detail) {
-                  const b = testCase.business_test_case_detail;
-                  const template = `Title: ${b.title}\nModule: ${b.module}${b.sub_module ? ' / ' + b.sub_module : ''}\nPreconditions: ${b.preconditions || 'None'}\nManual Steps:\n${b.steps}\nExpected Result: ${b.expected_result}`;
-                  setAiPrompt(template);
-                }
                 setShowAiModal(true);
               }}
             >

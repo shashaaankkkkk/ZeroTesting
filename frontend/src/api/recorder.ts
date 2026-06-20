@@ -12,4 +12,13 @@ export const recorderApi = {
 
   steps: (sessionId: string) =>
     client.get<{ session_id: string; status: string; steps: Array<{ action: string; target: string; value: string; description: string }> }>(`/recorder/${sessionId}/steps/`).then(r => r.data),
+
+  updateSteps: (sessionId: string, steps: any[]) =>
+    client.put<{ session_id: string; status: string; steps: any[] }>(`/recorder/${sessionId}/steps/`, { steps }).then(r => r.data),
+
+  getScreenshot: (sessionId: string) =>
+    client.get<{ screenshot: string }>(`/recorder/${sessionId}/screenshot/`).then(r => r.data),
+
+  sendInteraction: (sessionId: string, data: { action: string; x?: number; y?: number; text?: string; key?: string; url?: string }) =>
+    client.post<{ status: string }>(`/recorder/${sessionId}/interact/`, data).then(r => r.data),
 };

@@ -5,23 +5,6 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Business Test Cases
-    path(
-        "projects/<uuid:project_id>/business-tests/",
-        views.BusinessTestCaseListCreateView.as_view(),
-        name="business-test-list-create",
-    ),
-    path(
-        "projects/<uuid:project_id>/business-tests/import/",
-        views.ExcelImportView.as_view(),
-        name="business-test-import",
-    ),
-    path(
-        "business-tests/<uuid:pk>/",
-        views.BusinessTestCaseDetailView.as_view(),
-        name="business-test-detail",
-    ),
-
     # Automation Test Cases
     path(
         "projects/<uuid:project_id>/automation-tests/",
@@ -68,26 +51,10 @@ urlpatterns = [
         name="testcase-group-detail",
     ),
     path(
-        "testcase-groups/<uuid:pk>/generate-automation/",
-        views.GroupBulkGenerateAutomationView.as_view(),
-        name="group-bulk-generate-automation",
-    ),
-
-    # Bulk & Single Generation
-    path(
-        "projects/<uuid:project_id>/business-tests/bulk-generate-automation/",
-        views.ProjectBulkGenerateAutomationView.as_view(),
-        name="project-bulk-generate-automation",
-    ),
-    path(
         "testcase-groups/<uuid:pk>/add-testcases/",
         views.TestCaseGroupAddTestCasesView.as_view(),
         name="testcase-group-add-testcases",
     ),
-    path(
-        "business-tests/<uuid:pk>/generate-automation/",
-        views.SingleGenerateAutomationView.as_view(),
-        name="business-test-single-generate-automation",
-    ),
 ]
+
 

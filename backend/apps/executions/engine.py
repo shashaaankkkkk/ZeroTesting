@@ -26,6 +26,7 @@ class PlaywrightEngine:
         self.console_logs = []
         self.network_logs = []
         self.artifact_dir = get_artifact_dir(str(execution_run.id))
+        self.is_navigated = False
 
     async def setup(self):
         """Launch browser and set up page."""
@@ -98,7 +99,13 @@ class PlaywrightEngine:
             target = step.get_resolved_target()
             value = self._resolve_test_data(step.value) if step.value else ""
 
+            if not self.is_navigated and step.action != "navigate":
+                logger.info("First step is not navigate. Performing auto-navigation to base URL: %s", self.base_url)
+                await self.page.goto(self.base_url, timeout=timeout)
+                self.is_navigated = True
+
             if step.action == "navigate":
+                self.is_navigated = True
                 url = value
                 if not url.startswith(("http://", "https://")):
                     url = f"{self.base_url.rstrip('/')}/{url.lstrip('/')}"

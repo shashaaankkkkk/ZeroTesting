@@ -9,4 +9,6 @@ urlpatterns = [
     path("recorder/<str:session_id>/stop/", views.StopRecordingView.as_view(), name="recorder-stop"),
     path("recorder/<str:session_id>/status/", views.RecordingStatusView.as_view(), name="recorder-status"),
     path("recorder/<str:session_id>/steps/", views.RecordedStepsView.as_view(), name="recorder-steps"),
+    path("recorder/<str:session_id>/screenshot/", views.RecordingScreenshotView.as_view(), name="recorder-screenshot"),
+    path("recorder/<str:session_id>/interact/", views.RecordingInteractView.as_view(), name="recorder-interact"),
 ]

@@ -17,10 +17,14 @@ class ArtifactSerializer(serializers.ModelSerializer):
         ]
 
     def get_download_url(self, obj):
+        url = f"/api/v1/artifacts/{obj.id}/download/"
         request = self.context.get("request")
         if request:
-            return request.build_absolute_uri(f"/api/v1/artifacts/{obj.id}/download/")
-        return None
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
+                url = f"{url}?token={token}"
+        return url
 
 
 class ExecutionStepResultSerializer(serializers.ModelSerializer):

@@ -22,7 +22,6 @@ export interface Environment {
 }
 
 export interface ProjectStats {
-  total_business_tests: number;
   total_automation_tests: number;
   total_executions: number;
   total_environments: number;

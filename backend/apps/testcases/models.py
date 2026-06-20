@@ -6,55 +6,8 @@ from core.mixins import BaseModel
 from apps.projects.models import Project
 
 
-class BusinessTestCase(BaseModel):
-    """Business test case imported from Excel or created manually."""
-
-    class Priority(models.TextChoices):
-        CRITICAL = "critical", "Critical"
-        HIGH = "high", "High"
-        MEDIUM = "medium", "Medium"
-        LOW = "low", "Low"
-
-    class Status(models.TextChoices):
-        ACTIVE = "active", "Active"
-        DRAFT = "draft", "Draft"
-        DEPRECATED = "deprecated", "Deprecated"
-
-    project = models.ForeignKey(
-        Project,
-        on_delete=models.CASCADE,
-        related_name="business_test_cases",
-    )
-    module = models.CharField(max_length=200)
-    sub_module = models.CharField(max_length=200, blank=True, default="")
-    tc_id = models.CharField(max_length=50)
-    title = models.CharField(max_length=500)
-    preconditions = models.TextField(blank=True, default="")
-    steps = models.TextField()
-    expected_result = models.TextField()
-    priority = models.CharField(
-        max_length=20,
-        choices=Priority.choices,
-        default=Priority.MEDIUM,
-    )
-    status = models.CharField(
-        max_length=20,
-        choices=Status.choices,
-        default=Status.ACTIVE,
-    )
-    source_file = models.CharField(max_length=500, null=True, blank=True)
-
-    class Meta:
-        db_table = "business_test_cases"
-        ordering = ["module", "sub_module", "tc_id"]
-        unique_together = ["project", "tc_id"]
-
-    def __str__(self):
-        return f"{self.tc_id} - {self.title}"
-
-
 class AutomationTestCase(BaseModel):
-    """Automation test case that maps to a business test case."""
+    """Automation test case."""
 
     class Source(models.TextChoices):
         MANUAL = "manual", "Manual"
@@ -65,13 +18,6 @@ class AutomationTestCase(BaseModel):
         Project,
         on_delete=models.CASCADE,
         related_name="automation_test_cases",
-    )
-    business_test_case = models.ForeignKey(
-        BusinessTestCase,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="automation_mappings",
     )
     name = models.CharField(max_length=300)
     description = models.TextField(blank=True, default="")
@@ -151,7 +97,7 @@ class TestCaseGroup(BaseModel):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True, default="")
     test_cases = models.ManyToManyField(
-        BusinessTestCase,
+        AutomationTestCase,
         related_name="test_case_groups",
         blank=True,
     )
@@ -163,4 +109,5 @@ class TestCaseGroup(BaseModel):
 
     def __str__(self):
         return f"{self.name} ({self.project.name})"
+
 

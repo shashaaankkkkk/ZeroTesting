@@ -39,7 +39,6 @@ export default function AutomationTestsPage() {
   const [form, setForm] = useState({
     name: '',
     description: '',
-    business_test_case_id: '',
     source: 'manual',
   });
 
@@ -49,11 +48,7 @@ export default function AutomationTestsPage() {
     enabled: !!projectId,
   });
 
-  const { data: businessTests } = useQuery({
-    queryKey: ['business-tests-all', projectId],
-    queryFn: () => testcasesApi.listBusinessTests(projectId!, { limit: '100' }),
-    enabled: !!projectId,
-  });
+
 
   const { data, isLoading } = useQuery({
     queryKey: ['automation-tests', projectId, search, page],
@@ -107,7 +102,6 @@ export default function AutomationTestsPage() {
     setForm({
       name: '',
       description: '',
-      business_test_case_id: '',
       source: 'manual',
     });
   };
@@ -131,7 +125,7 @@ export default function AutomationTestsPage() {
         <EmptyState
           icon={<RiRobot2Line size={48} />}
           title="No automation tests yet"
-          description="Create a visual no-code automation flow from scratch or mapping to a business test case."
+          description="Create a visual no-code automation flow from scratch."
           action={
             <Button onClick={() => setShowCreate(true)}>
               <RiAddLine size={16} /> Create Automation Test
@@ -144,7 +138,6 @@ export default function AutomationTestsPage() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase">
                 <th className="px-6 py-3">Name</th>
-                <th className="px-6 py-3">Linked Business Case</th>
                 <th className="px-6 py-3">Steps</th>
                 <th className="px-6 py-3">Source</th>
                 <th className="px-6 py-3">Created</th>
@@ -160,16 +153,7 @@ export default function AutomationTestsPage() {
                       <div className="text-xs text-gray-400 line-clamp-1">{test.description}</div>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-gray-500">
-                    {test.business_test_case_detail ? (
-                      <span className="font-mono text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 mr-2">
-                        {test.business_test_case_detail.tc_id}
-                      </span>
-                    ) : (
-                      '—'
-                    )}
-                    {test.business_test_case_detail?.title}
-                  </td>
+
                   <td className="px-6 py-4 text-gray-700 font-semibold">{test.steps_count || 0} steps</td>
                   <td className="px-6 py-4">
                     <Badge className={
@@ -257,18 +241,7 @@ export default function AutomationTestsPage() {
             />
           </div>
 
-          <Select
-            label="Link Business Test Case (Optional)"
-            options={[
-              { value: '', label: 'None' },
-              ...(businessTests?.results || []).map((b: any) => ({
-                value: b.id,
-                label: `[${b.tc_id}] ${b.title}`,
-              })),
-            ]}
-            value={form.business_test_case_id}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, business_test_case_id: e.target.value })}
-          />
+
 
           <Select
             label="Source"

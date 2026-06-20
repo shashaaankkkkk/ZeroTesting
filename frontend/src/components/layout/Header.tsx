@@ -12,8 +12,7 @@ export default function Header() {
   const getPageTitle = () => {
     const path = location.pathname;
     if (path === '/') return 'Dashboard';
-    if (path === '/projects') return 'Projects';
-    if (path.includes('/business-tests')) return 'Business Test Cases';
+    if (path.includes('/projects') && path.endsWith('/projects')) return 'Projects';
     if (path.includes('/automation-tests') && path.includes('/builder')) return 'Visual Test Builder';
     if (path.includes('/automation-tests')) return 'Automation Tests';
     if (path.includes('/objects')) return 'Object Repository';

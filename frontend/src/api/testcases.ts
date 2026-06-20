@@ -1,38 +1,8 @@
 import client from './client';
-import type { BusinessTestCase, AutomationTestCase, AutomationStep, ObjectRepositoryItem, TestDataItem, ExcelImportResult, ScriptOutput, TestCaseGroup, TestCaseGroupDetail } from '../types/testcase';
+import type { AutomationTestCase, AutomationStep, ObjectRepositoryItem, TestDataItem, ScriptOutput, TestCaseGroup, TestCaseGroupDetail } from '../types/testcase';
 import type { PaginatedResponse } from '../types/common';
 
 export const testcasesApi = {
-  // Business Test Cases
-  listBusinessTests: (projectId: string, params?: Record<string, string>) =>
-    client.get<PaginatedResponse<BusinessTestCase>>(`/projects/${projectId}/business-tests/`, { params }).then(r => r.data),
-
-  getBusinessTest: (id: string) =>
-    client.get<BusinessTestCase>(`/business-tests/${id}/`).then(r => r.data),
-
-  createBusinessTest: (projectId: string, data: Partial<BusinessTestCase>) =>
-    client.post<BusinessTestCase>(`/projects/${projectId}/business-tests/`, data).then(r => r.data),
-
-  updateBusinessTest: (id: string, data: Partial<BusinessTestCase>) =>
-    client.patch<BusinessTestCase>(`/business-tests/${id}/`, data).then(r => r.data),
-
-  deleteBusinessTest: (id: string) =>
-    client.delete(`/business-tests/${id}/`),
-
-  importExcel: (projectId: string, file: File, groupId?: string, groupName?: string) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (groupId) {
-      formData.append('group_id', groupId);
-    }
-    if (groupName) {
-      formData.append('group_name', groupName);
-    }
-    return client.post<ExcelImportResult>(`/projects/${projectId}/business-tests/import/`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data);
-  },
-
   // Automation Test Cases
   listAutomationTests: (projectId: string, params?: Record<string, string>) =>
     client.get<PaginatedResponse<AutomationTestCase>>(`/projects/${projectId}/automation-tests/`, { params }).then(r => r.data),
@@ -113,15 +83,7 @@ export const testcasesApi = {
   deleteGroup: (id: string) =>
     client.delete(`/testcase-groups/${id}/`),
 
-  generateGroupAutomation: (id: string) =>
-    client.post<{ message: string; task_id: string }>(`/testcase-groups/${id}/generate-automation/`).then(r => r.data),
-
-  bulkGenerateAutomation: (projectId: string, testCaseIds: string[]) =>
-    client.post<{ message: string; task_id: string }>(`/projects/${projectId}/business-tests/bulk-generate-automation/`, { test_case_ids: testCaseIds }).then(r => r.data),
-
-  generateSingleAutomation: (businessTestCaseId: string) =>
-    client.post<AutomationTestCase>(`/business-tests/${businessTestCaseId}/generate-automation/`).then(r => r.data),
-
   addTestCasesToGroup: (groupId: string, testCaseIds: string[]) =>
     client.post<{ message: string }>(`/testcase-groups/${groupId}/add-testcases/`, { test_case_ids: testCaseIds }).then(r => r.data),
 };
+

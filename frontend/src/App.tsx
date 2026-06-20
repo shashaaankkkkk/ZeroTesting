@@ -15,7 +15,6 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
-import BusinessTestCasesPage from './pages/BusinessTestCasesPage';
 import AutomationTestsPage from './pages/AutomationTestsPage';
 import VisualTestBuilderPage from './pages/VisualTestBuilderPage';
 import PlaywrightRecorderPage from './pages/PlaywrightRecorderPage';
@@ -72,7 +71,6 @@ export default function App() {
             {/* Projects */}
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="projects/:id" element={<ProjectDetailPage />} />
-            <Route path="projects/:id/business-tests" element={<BusinessTestCasesPage />} />
             <Route path="projects/:id/automation-tests" element={<AutomationTestsPage />} />
             <Route path="projects/:id/automation-tests/:testId/builder" element={<VisualTestBuilderPage />} />
             <Route path="projects/:id/recorder" element={<PlaywrightRecorderPage />} />

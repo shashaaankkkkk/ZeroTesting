@@ -4,7 +4,9 @@ Recorder Celery tasks.
 import asyncio
 import logging
 import json
+import base64
 from celery import shared_task
+from django.core.cache import cache
 from .services import RecorderService
 
 logger = logging.getLogger(__name__)
@@ -120,7 +122,7 @@ async def _record(session_id, base_url):
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=settings.PLAYWRIGHT_HEADLESS)
-        context = await browser.new_context(viewport={"width": 1920, "height": 1080})
+        context = await browser.new_context(viewport={"width": 1280, "height": 720})
         page = await context.new_page()
 
         # Navigate to base URL
@@ -148,16 +150,72 @@ async def _record(session_id, base_url):
         # Re-inject on navigation
         page.on("load", lambda: page.evaluate(RECORDER_SCRIPT))
 
-        # Poll for stop signal
+        # Command queue key
+        command_key = f"recorder_commands_{session_id}"
+        cache.set(command_key, [], 600)
+
+        # Screenshot capture key
+        screenshot_key = f"recorder_screenshot_{session_id}"
+
+        # Poll for stop signal and interaction commands
         max_wait = 300  # 5 minutes max
         elapsed = 0
         while elapsed < max_wait:
-            await page.wait_for_timeout(2000)
-            elapsed += 2
+            # Capture screenshot
+            try:
+                screenshot_bytes = await page.screenshot(type="jpeg", quality=60)
+                screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                cache.set(screenshot_key, screenshot_base64, 600)
+            except Exception as se:
+                logger.error("Failed to capture screenshot: %s", se)
 
+            # Wait for 1 second
+            await page.wait_for_timeout(1000)
+            elapsed += 1
+
+            # Check session status
             session = RecorderService.get_session(session_id)
             if not session or session.get("status") == "stopping":
                 break
+
+            # Consume interaction command queue
+            commands = cache.get(command_key) or []
+            if commands:
+                cache.set(command_key, [], 600)  # Consume
+                for cmd in commands:
+                    cmd_id = cmd.get("id")
+                    try:
+                        action = cmd.get("action")
+                        if action == "click":
+                            x = cmd.get("x")
+                            y = cmd.get("y")
+                            await page.mouse.click(x, y)
+                        elif action == "type":
+                            text = cmd.get("text")
+                            await page.keyboard.type(text)
+                        elif action == "press":
+                            key = cmd.get("key")
+                            await page.keyboard.press(key)
+                        elif action == "navigate":
+                            url = cmd.get("url")
+                            await page.goto(url, wait_until="networkidle", timeout=30000)
+                            await page.evaluate(RECORDER_SCRIPT)
+                        elif action == "back":
+                            await page.go_back()
+                        elif action == "forward":
+                            await page.go_forward()
+                        elif action == "reload":
+                            await page.reload()
+
+                        # Immediately take screenshot after executing the command
+                        screenshot_bytes = await page.screenshot(type="jpeg", quality=60)
+                        screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                        cache.set(screenshot_key, screenshot_base64, 600)
+                    except Exception as ce:
+                        logger.error("Failed to execute command %s: %s", cmd, ce)
+                    finally:
+                        if cmd_id:
+                            cache.set(f"recorder_command_result_{cmd_id}", "done", 60)
 
             # Extract recorded steps
             try:
@@ -182,3 +240,4 @@ async def _record(session_id, base_url):
         await browser.close()
 
     logger.info("Recording session %s completed", session_id)
+

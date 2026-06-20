@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
@@ -8,19 +8,63 @@ import {
   RiCheckboxCircleLine,
   RiImageLine,
   RiAlertLine,
+  RiFileCopyLine,
+  RiEyeLine,
 } from 'react-icons/ri';
 import { executionsApi } from '../api/executions';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Badge from '../components/ui/Badge';
+import Modal from '../components/ui/Modal';
 import { useUIStore } from '../stores/uiStore';
 import { usePolling } from '../hooks/usePolling';
 import { formatDate, formatDuration } from '../utils/formatters';
+
+const getTicketUrl = (url: string | null, ticket: string) => {
+  if (!url) return '';
+  if (url.includes('ticket=')) return url;
+  if (!ticket) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}ticket=${encodeURIComponent(ticket)}`;
+};
 
 export default function ExecutionDetailPage() {
   const { runId } = useParams<{ id: string; runId: string }>();
   const { addToast } = useUIStore();
   const [selectedStep, setSelectedStep] = useState<any>(null);
+  const [viewingLog, setViewingLog] = useState<{ name: string; content: string } | null>(null);
+  const [loadingLogId, setLoadingLogId] = useState<string | null>(null);
+  const [downloadTicket, setDownloadTicket] = useState<string>('');
+
+  useEffect(() => {
+    executionsApi.createTicket()
+      .then((res) => setDownloadTicket(res.ticket))
+      .catch(() => {});
+  }, [runId]);
+
+  const handleViewLog = async (art: any) => {
+    setLoadingLogId(art.id);
+    try {
+      const url = getTicketUrl(art.download_url, downloadTicket);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch log content');
+      }
+      const text = await response.text();
+      let formattedContent = text;
+      try {
+        const json = JSON.parse(text);
+        formattedContent = JSON.stringify(json, null, 2);
+      } catch (e) {
+        // Keep as text
+      }
+      setViewingLog({ name: art.file_name, content: formattedContent });
+    } catch (err) {
+      addToast('error', 'Failed to load log file');
+    } finally {
+      setLoadingLogId(null);
+    }
+  };
 
   // Fetch Execution details
   const { data: run, isLoading, refetch } = useQuery({
@@ -101,21 +145,24 @@ export default function ExecutionDetailPage() {
         <div className="lg:col-span-7 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="text-sm font-bold text-gray-900 mb-4">Execution Steps</h3>
-            <div className="space-y-3">
+            <div className="relative pl-8 border-l border-gray-200 ml-4 space-y-4">
               {(run.step_results || []).map((stepResult: any, idx: number) => (
                 <div
                   key={stepResult.id}
                   onClick={() => setSelectedStep(stepResult)}
-                  className={`flex items-start gap-4 p-3 border rounded-lg cursor-pointer transition-colors ${
+                  className={`relative flex items-start gap-4 p-3 border rounded-lg cursor-pointer transition-colors ${
                     selectedStep?.id === stepResult.id ? 'bg-blue-50/30 border-blue-300' : 'bg-gray-50 border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                    stepResult.status === 'passed' ? 'bg-green-100 text-green-700' :
-                    stepResult.status === 'failed' ? 'bg-red-100 text-red-700' :
-                    'bg-gray-200 text-gray-600'
+                  {/* Timeline connector step index bubble */}
+                  <span className={`absolute -left-[44px] top-3.5 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center shrink-0 shadow-md text-[10px] font-bold text-white transition-all ${
+                    selectedStep?.id === stepResult.id ? 'scale-110 ring-2 ring-blue-500/20' : ''
+                  } ${
+                    stepResult.status === 'passed' ? 'bg-green-500' :
+                    stepResult.status === 'failed' ? 'bg-red-500' :
+                    'bg-gray-400'
                   }`}>
-                    {stepResult.status === 'passed' ? <RiCheckboxCircleLine size={14} /> : <RiCloseCircleLine size={14} />}
+                    {idx + 1}
                   </span>
 
                   <div className="flex-1 min-w-0">
@@ -161,7 +208,7 @@ export default function ExecutionDetailPage() {
                     <div className="text-xs font-semibold text-gray-700 flex items-center gap-1"><RiImageLine /> Screenshot</div>
                     <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
                       <img
-                        src={`${import.meta.env.VITE_API_URL || '/api/v1'}/artifacts/download/?path=${encodeURIComponent(selectedStep.screenshot_path)}`}
+                        src={getTicketUrl(`/api/v1/artifacts/download/?path=${encodeURIComponent(selectedStep.screenshot_path)}`, downloadTicket)}
                         alt="Step Screenshot"
                         className="w-full h-auto object-contain max-h-[300px]"
                         onError={(e) => {
@@ -188,7 +235,7 @@ export default function ExecutionDetailPage() {
                         <h4 className="text-xs font-semibold text-gray-700 flex items-center gap-1"><RiImageLine /> Browser Recording Video</h4>
                         <div className="border border-gray-200 rounded-lg overflow-hidden bg-black">
                           <video
-                            src={video.download_url || undefined}
+                            src={getTicketUrl(video.download_url, downloadTicket)}
                             controls
                             className="w-full h-auto object-contain max-h-[300px]"
                           />
@@ -213,14 +260,24 @@ export default function ExecutionDetailPage() {
                           <p className="font-semibold text-gray-800 truncate">{art.file_name}</p>
                           <p className="text-[10px] text-gray-400 uppercase font-mono">{art.artifact_type.replace('_', ' ')} · {(art.file_size / 1024).toFixed(1)} KB</p>
                         </div>
-                        <a
-                          href={art.download_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-800 font-semibold"
-                        >
-                          Download
-                        </a>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleViewLog(art)}
+                            disabled={loadingLogId !== null}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-semibold cursor-pointer disabled:opacity-50"
+                          >
+                            {loadingLogId === art.id ? 'Loading...' : 'View'}
+                          </button>
+                          <span className="text-gray-300">|</span>
+                          <a
+                            href={getTicketUrl(art.download_url, downloadTicket)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 font-semibold"
+                          >
+                            Download
+                          </a>
+                        </div>
                       </div>
                     ))}
                     {(run.artifacts || []).filter((a: any) => a.artifact_type !== 'video' && a.artifact_type !== 'screenshot').length === 0 && (
@@ -237,6 +294,39 @@ export default function ExecutionDetailPage() {
           </div>
         </div>
       </div>
+      {/* Log Content Modal */}
+      {viewingLog && (
+        <Modal
+          isOpen={!!viewingLog}
+          onClose={() => setViewingLog(null)}
+          title={`Log Content: ${viewingLog.name}`}
+          size="xl"
+        >
+          <div className="space-y-4">
+            <div className="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-200">
+              <span className="text-xs text-gray-500 font-mono">Format: {viewingLog.name.endsWith('.json') ? 'JSON' : 'Plain Text'}</span>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  navigator.clipboard.writeText(viewingLog.content);
+                  addToast('success', 'Log content copied to clipboard');
+                }}
+              >
+                <RiFileCopyLine size={14} className="mr-1" /> Copy Log
+              </Button>
+            </div>
+            <pre className="bg-gray-950 text-gray-100 font-mono text-[11px] p-4 rounded-xl overflow-auto max-h-[60vh] border border-gray-800 whitespace-pre-wrap select-all leading-relaxed shadow-inner">
+              {viewingLog.content}
+            </pre>
+            <div className="flex justify-end pt-2">
+              <Button variant="secondary" onClick={() => setViewingLog(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

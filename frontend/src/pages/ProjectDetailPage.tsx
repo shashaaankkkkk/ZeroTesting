@@ -61,7 +61,6 @@ export default function ProjectDetailPage() {
 
   const statItems = [
     { label: 'Environments', value: stats?.total_environments || 0 },
-    { label: 'Business Tests', value: stats?.total_business_tests || 0 },
     { label: 'Automation Tests', value: stats?.total_automation_tests || 0 },
     { label: 'Executions', value: stats?.total_executions || 0 },
     { label: 'Open Failures', value: stats?.open_failures || 0 },

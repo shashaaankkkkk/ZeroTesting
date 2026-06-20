@@ -33,4 +33,7 @@ export const executionsApi = {
 
   recentFailures: () =>
     client.get<ExecutionRun[]>('/dashboard/recent-failures/').then(r => r.data),
+
+  createTicket: () =>
+    client.post<{ ticket: string }>('/tickets/create/').then(r => r.data),
 };

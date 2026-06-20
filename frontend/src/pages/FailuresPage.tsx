@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -9,6 +9,7 @@ import {
   RiSparkling2Line,
 } from 'react-icons/ri';
 import { failuresApi } from '../api/failures';
+import { executionsApi } from '../api/executions';
 import { aiApi } from '../api/ai';
 import Button from '../components/ui/Button';
 import Select from '../components/ui/Select';
@@ -21,6 +22,14 @@ import Badge from '../components/ui/Badge';
 import { useUIStore } from '../stores/uiStore';
 import { formatDate } from '../utils/formatters';
 
+const getTicketUrl = (url: string | null, ticket: string) => {
+  if (!url) return '';
+  if (url.includes('ticket=')) return url;
+  if (!ticket) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}ticket=${encodeURIComponent(ticket)}`;
+};
+
 export default function FailuresPage() {
   const { id: projectId } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -30,6 +39,15 @@ export default function FailuresPage() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [selectedFailure, setSelectedFailure] = useState<any>(null);
+  const [downloadTicket, setDownloadTicket] = useState<string>('');
+
+  useEffect(() => {
+    if (selectedFailure) {
+      executionsApi.createTicket()
+        .then((res) => setDownloadTicket(res.ticket))
+        .catch(() => {});
+    }
+  }, [selectedFailure?.id]);
 
   const [form, setForm] = useState({
     status: 'open',
@@ -215,7 +233,7 @@ export default function FailuresPage() {
                 <div className="text-xs font-semibold text-gray-700">Failure Screenshot</div>
                 <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
                   <img
-                    src={`${import.meta.env.VITE_API_URL || '/api/v1'}/artifacts/download/?path=${encodeURIComponent(selectedFailure.screenshot_path)}`}
+                    src={getTicketUrl(`/api/v1/artifacts/download/?path=${encodeURIComponent(selectedFailure.screenshot_path)}`, downloadTicket)}
                     alt="Failure Screenshot"
                     className="w-full h-auto object-contain max-h-[300px]"
                     onError={(e) => {

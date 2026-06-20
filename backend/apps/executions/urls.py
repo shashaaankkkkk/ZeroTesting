@@ -18,6 +18,7 @@ urlpatterns = [
     path("executions/<uuid:pk>/artifacts/", views.ArtifactListView.as_view(), name="execution-artifacts"),
 
     # Artifacts
+    path("tickets/create/", views.CreateDownloadTicketView.as_view(), name="create-download-ticket"),
     path("artifacts/download/", views.DirectArtifactDownloadView.as_view(), name="direct-artifact-download"),
     path("artifacts/<uuid:pk>/download/", views.ArtifactDownloadView.as_view(), name="artifact-download"),
 

@@ -1,23 +1,4 @@
-export type Priority = 'critical' | 'high' | 'medium' | 'low';
-export type TestStatus = 'active' | 'draft' | 'deprecated';
 export type StepAction = 'navigate' | 'click' | 'fill' | 'select' | 'upload' | 'wait' | 'verify_text' | 'verify_url' | 'verify_element' | 'screenshot';
-
-export interface BusinessTestCase {
-  id: string;
-  module: string;
-  sub_module: string;
-  tc_id: string;
-  title: string;
-  preconditions: string;
-  steps: string;
-  expected_result: string;
-  priority: Priority;
-  status: TestStatus;
-  source_file: string | null;
-  automation_count: number;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface AutomationTestCase {
   id: string;
@@ -26,9 +7,6 @@ export interface AutomationTestCase {
   tags: string[];
   is_active: boolean;
   source: 'manual' | 'recorder' | 'ai';
-  business_test_case: string | null;
-  business_test_title: string | null;
-  business_test_case_detail?: BusinessTestCase | null;
   step_count?: number;
   steps?: AutomationStep[];
   created_at: string;
@@ -75,14 +53,6 @@ export interface TestDataItem {
   updated_at: string;
 }
 
-export interface ExcelImportResult {
-  created: number;
-  updated: number;
-  skipped: number;
-  errors: string[];
-  total_rows: number;
-}
-
 export interface ScriptOutput {
   test_case_id: string;
   test_case_name: string;
@@ -116,8 +86,9 @@ export interface TestCaseGroupDetail {
   id: string;
   name: string;
   description: string;
-  test_cases: BusinessTestCase[];
+  test_cases: AutomationTestCase[];
   created_at: string;
   updated_at: string;
 }
+
 

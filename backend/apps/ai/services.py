@@ -30,6 +30,8 @@ class GeminiService:
         prompt = f"""You are a QA automation expert. Convert the following natural language test description 
 into structured automation test steps.
 
+Crucial Requirement: The first step MUST be a 'navigate' action (e.g. to a login page, base url, or '/' relative path) to load the page before executing other steps.
+
 Each step should have:
 - action: one of [navigate, click, fill, select, upload, wait, verify_text, verify_url, verify_element, screenshot]
 - target: CSS selector or locator (if applicable)
