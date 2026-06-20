@@ -33,7 +33,7 @@ PRIORITY_MAPPING = {
 }
 
 
-def parse_excel(file, project):
+def parse_excel(file, project, group=None):
     """
     Parse an Excel file and create BusinessTestCase records.
 
@@ -117,10 +117,59 @@ def parse_excel(file, project):
                     defaults=defaults,
                 )
 
+                if group:
+                    group.test_cases.add(obj)
+
                 if created:
                     result["created"] += 1
                 else:
                     result["updated"] += 1
+
+                # Auto-generate corresponding AutomationTestCase and steps via Gemini AI
+                from apps.ai.feature_flags import is_ai_enabled
+                from apps.ai.services import GeminiService
+                from .models import AutomationTestCase, AutomationStep
+
+                if is_ai_enabled():
+                    nl_input = f"""
+Title: {obj.title}
+Module: {obj.module} / {obj.sub_module}
+Preconditions: {obj.preconditions}
+Manual Steps:
+{obj.steps}
+Expected Result: {obj.expected_result}
+"""
+                    context = f"Project name: {project.name}. Description: {project.description}"
+                    try:
+                        steps_json = GeminiService.generate_test_steps(nl_input, context=context)
+                        if steps_json and isinstance(steps_json, list):
+                            auto_tc, auto_created = AutomationTestCase.objects.update_or_create(
+                                project=project,
+                                business_test_case=obj,
+                                defaults={
+                                    "name": f"Auto - {obj.title}",
+                                    "description": f"AI-generated from business test case {obj.tc_id}. Preconditions: {obj.preconditions}",
+                                    "source": AutomationTestCase.Source.AI,
+                                    "is_active": True
+                                }
+                            )
+                            # Recreate steps
+                            auto_tc.steps.all().delete()
+                            for order_idx, step_data in enumerate(steps_json, 1):
+                                action = step_data.get("action", "wait")
+                                if action not in [choice[0] for choice in AutomationStep.Action.choices]:
+                                    action = "wait"
+
+                                AutomationStep.objects.create(
+                                    test_case=auto_tc,
+                                    order=order_idx,
+                                    action=action,
+                                    target=step_data.get("target", ""),
+                                    value=step_data.get("value", ""),
+                                    description=step_data.get("description", f"Step {order_idx}")
+                                )
+                    except Exception as e:
+                        logger.exception("AI automation step generation failed during Excel import for TC %s: %s", tc_id, e)
 
             except Exception as e:
                 result["errors"].append(f"Row {row_num}: {str(e)}")

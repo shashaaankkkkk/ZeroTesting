@@ -12,14 +12,14 @@ from .services import GeminiService
 
 class GenerateStepsSerializer(serializers.Serializer):
     description = serializers.CharField(required=True)
-    context = serializers.CharField(required=False, default="")
+    context = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class FailureSummarySerializer(serializers.Serializer):
-    expected = serializers.CharField(required=True)
-    actual = serializers.CharField(required=True)
-    error_message = serializers.CharField(required=False, default="")
-    console_logs = serializers.CharField(required=False, default="")
+    expected = serializers.CharField(required=True, allow_blank=True)
+    actual = serializers.CharField(required=True, allow_blank=True)
+    error_message = serializers.CharField(required=False, allow_blank=True, default="")
+    console_logs = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class AIStatusView(APIView):

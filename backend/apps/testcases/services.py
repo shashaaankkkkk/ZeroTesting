@@ -122,3 +122,66 @@ class ScriptGeneratorService:
             "screenshot": f"Take screenshot",
         }
         return descriptions.get(action, f"{action}: {target} {value}")
+
+
+def generate_automation_for_business_case(business_tc) -> AutomationTestCase:
+    """
+    Generate an AutomationTestCase (and its AutomationSteps) for a given BusinessTestCase.
+    Returns:
+        AutomationTestCase or None
+    """
+    from apps.ai.feature_flags import is_ai_enabled
+    from apps.ai.services import GeminiService
+    from .models import AutomationTestCase, AutomationStep
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    if not is_ai_enabled():
+        logger.warning("AI is not enabled. Cannot generate automation steps.")
+        return None
+
+    nl_input = f"""
+Title: {business_tc.title}
+Module: {business_tc.module} / {business_tc.sub_module}
+Preconditions: {business_tc.preconditions}
+Manual Steps:
+{business_tc.steps}
+Expected Result: {business_tc.expected_result}
+"""
+    project = business_tc.project
+    context = f"Project name: {project.name}. Description: {project.description}"
+    try:
+        steps_json = GeminiService.generate_test_steps(nl_input, context=context)
+        if steps_json and isinstance(steps_json, list):
+            auto_tc, auto_created = AutomationTestCase.objects.update_or_create(
+                project=project,
+                business_test_case=business_tc,
+                defaults={
+                    "name": f"Auto - {business_tc.title}",
+                    "description": f"AI-generated from business test case {business_tc.tc_id}. Preconditions: {business_tc.preconditions}",
+                    "source": AutomationTestCase.Source.AI,
+                    "is_active": True
+                }
+            )
+            # Recreate steps
+            auto_tc.steps.all().delete()
+            for order_idx, step_data in enumerate(steps_json, 1):
+                action = step_data.get("action", "wait")
+                if action not in [choice[0] for choice in AutomationStep.Action.choices]:
+                    action = "wait"
+
+                AutomationStep.objects.create(
+                    test_case=auto_tc,
+                    order=order_idx,
+                    action=action,
+                    target=step_data.get("target", ""),
+                    value=step_data.get("value", ""),
+                    description=step_data.get("description", f"Step {order_idx}")
+                )
+            return auto_tc
+    except Exception as e:
+        logger.exception("AI automation step generation failed for TC %s: %s", business_tc.tc_id, e)
+        raise e
+    return None
+

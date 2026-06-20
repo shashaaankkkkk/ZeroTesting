@@ -55,4 +55,39 @@ urlpatterns = [
         views.StepDetailView.as_view(),
         name="step-detail",
     ),
+
+    # Test Case Groups
+    path(
+        "projects/<uuid:project_id>/testcase-groups/",
+        views.TestCaseGroupListCreateView.as_view(),
+        name="testcase-group-list-create",
+    ),
+    path(
+        "testcase-groups/<uuid:pk>/",
+        views.TestCaseGroupDetailView.as_view(),
+        name="testcase-group-detail",
+    ),
+    path(
+        "testcase-groups/<uuid:pk>/generate-automation/",
+        views.GroupBulkGenerateAutomationView.as_view(),
+        name="group-bulk-generate-automation",
+    ),
+
+    # Bulk & Single Generation
+    path(
+        "projects/<uuid:project_id>/business-tests/bulk-generate-automation/",
+        views.ProjectBulkGenerateAutomationView.as_view(),
+        name="project-bulk-generate-automation",
+    ),
+    path(
+        "testcase-groups/<uuid:pk>/add-testcases/",
+        views.TestCaseGroupAddTestCasesView.as_view(),
+        name="testcase-group-add-testcases",
+    ),
+    path(
+        "business-tests/<uuid:pk>/generate-automation/",
+        views.SingleGenerateAutomationView.as_view(),
+        name="business-test-single-generate-automation",
+    ),
 ]
+

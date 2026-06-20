@@ -2,6 +2,7 @@
 Execution views.
 """
 import os
+from django.conf import settings
 from django.http import FileResponse, Http404
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -124,10 +125,22 @@ class ArtifactDownloadView(APIView):
                 id=pk,
                 execution_run__project__owner=request.user,
             )
-            if os.path.exists(artifact.file_path):
+            file_path = artifact.file_path
+            # Translate path prefix if recorded in Docker context but running locally
+            if file_path.startswith("/app/media/"):
+                relative_path = file_path.replace("/app/media/", "", 1)
+                file_path = os.path.join(settings.MEDIA_ROOT, relative_path)
+
+            if os.path.exists(file_path):
+                # Set as_attachment=False for media viewable inline (videos/images)
+                as_attachment = True
+                ext = os.path.splitext(file_path)[1].lower()
+                if ext in (".webm", ".mp4", ".png", ".jpg", ".jpeg", ".gif"):
+                    as_attachment = False
+
                 return FileResponse(
-                    open(artifact.file_path, "rb"),
-                    as_attachment=True,
+                    open(file_path, "rb"),
+                    as_attachment=as_attachment,
                     filename=artifact.file_name,
                 )
             raise Http404("Artifact file not found.")
@@ -181,6 +194,11 @@ class DirectArtifactDownloadView(APIView):
         path_param = request.query_params.get("path")
         if not path_param:
             raise Http404("Path not specified.")
+
+        # Translate path prefix if recorded in Docker context but running locally
+        if path_param.startswith("/app/media/"):
+            relative_path = path_param.replace("/app/media/", "", 1)
+            path_param = os.path.join(settings.MEDIA_ROOT, relative_path)
 
         # Resolve path and check it is within media root for security
         media_root = os.path.abspath(settings.MEDIA_ROOT)

@@ -27,6 +27,8 @@ import FailuresPage from './pages/FailuresPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
+import GroupsPage from './pages/GroupsPage';
+import GroupDetailPage from './pages/GroupDetailPage';
 
 // Style imports
 import './App.css';
@@ -80,6 +82,8 @@ export default function App() {
             <Route path="projects/:id/executions/:runId" element={<ExecutionDetailPage />} />
             <Route path="projects/:id/failures" element={<FailuresPage />} />
             <Route path="projects/:id/reports" element={<ReportsPage />} />
+            <Route path="projects/:id/groups" element={<GroupsPage />} />
+            <Route path="projects/:id/groups/:groupId" element={<GroupDetailPage />} />
 
             {/* Profile & settings */}
             <Route path="profile" element={<ProfilePage />} />

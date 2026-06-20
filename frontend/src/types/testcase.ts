@@ -28,6 +28,7 @@ export interface AutomationTestCase {
   source: 'manual' | 'recorder' | 'ai';
   business_test_case: string | null;
   business_test_title: string | null;
+  business_test_case_detail?: BusinessTestCase | null;
   step_count?: number;
   steps?: AutomationStep[];
   created_at: string;
@@ -101,3 +102,22 @@ export const STEP_ACTIONS: { value: StepAction; label: string; needsTarget: bool
   { value: 'verify_element', label: 'Verify Element', needsTarget: true, needsValue: false },
   { value: 'screenshot', label: 'Take Screenshot', needsTarget: false, needsValue: false },
 ];
+
+export interface TestCaseGroup {
+  id: string;
+  name: string;
+  description: string;
+  test_case_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TestCaseGroupDetail {
+  id: string;
+  name: string;
+  description: string;
+  test_cases: BusinessTestCase[];
+  created_at: string;
+  updated_at: string;
+}
+

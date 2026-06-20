@@ -22,23 +22,33 @@ email = os.environ.get('SUPERUSER_EMAIL')
 username = os.environ.get('SUPERUSER_USERNAME')
 password = os.environ.get('SUPERUSER_PASSWORD')
 if email and username and password:
-    if not User.objects.filter(email=email).exists():
-        User.objects.create_superuser(
-            email=email,
-            username=username,
-            password=password,
-            first_name='Admin',
-            last_name='User',
-        )
-        print(f'Superuser created: {email}')
+    if not User.objects.filter(email=email).exists() and not User.objects.filter(username=username).exists():
+        try:
+            User.objects.create_superuser(
+                email=email,
+                username=username,
+                password=password,
+                first_name='Admin',
+                last_name='User',
+            )
+            print(f'Superuser created: {email}')
+        except Exception as e:
+            print(f'Error creating superuser: {e}')
     else:
-        print('Superuser already exists')
+        print('Superuser with this email or username already exists')
 else:
     print('Superuser environment variables (SUPERUSER_EMAIL, SUPERUSER_USERNAME, SUPERUSER_PASSWORD) not fully set. Skipping superuser creation.')
 "
 
 echo "Collecting static files..."
 python manage.py collectstatic --noinput 2>/dev/null || true
+
+if [[ "$*" == *celery* ]]; then
+    echo "Starting Xvfb..."
+    Xvfb :99 -screen 0 1920x1080x24 -ac &
+    export DISPLAY=:99
+    sleep 1
+fi
 
 echo "Starting server..."
 exec "$@"

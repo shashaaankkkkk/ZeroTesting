@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -7,6 +7,8 @@ import {
   RiFileExcelLine,
   RiDeleteBinLine,
   RiEditLine,
+  RiRobotLine,
+  RiStackLine,
 } from 'react-icons/ri';
 import { testcasesApi } from '../api/testcases';
 import Button from '../components/ui/Button';
@@ -34,6 +36,22 @@ export default function BusinessTestCasesPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [editingCase, setEditingCase] = useState<any>(null);
 
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Bulk actions state
+  const [showAddToGroupModal, setShowAddToGroupModal] = useState(false);
+  const [targetGroupId, setTargetGroupId] = useState('');
+  const [newGroupNameForAdd, setNewGroupNameForAdd] = useState('');
+  const [isBulkGenerating, setIsBulkGenerating] = useState(false);
+
+  // Excel group options
+  const [uploadGroupId, setUploadGroupId] = useState('');
+  const [uploadGroupName, setUploadGroupName] = useState('');
+
+  // Single AI generation state
+  const [generatingSingleId, setGeneratingSingleId] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     tc_id: '',
     title: '',
@@ -46,6 +64,7 @@ export default function BusinessTestCasesPage() {
     status: 'active',
   });
 
+  // Fetch Business Test Cases
   const { data, isLoading } = useQuery({
     queryKey: ['business-tests', projectId, search, priority, status, page],
     queryFn: () =>
@@ -57,6 +76,19 @@ export default function BusinessTestCasesPage() {
       }),
     enabled: !!projectId,
   });
+
+  // Fetch Groups
+  const { data: groupsData } = useQuery({
+    queryKey: ['testcase-groups', projectId],
+    queryFn: () => testcasesApi.listGroups(projectId!),
+    enabled: !!projectId,
+  });
+  const groupsList = groupsData?.results || [];
+
+  // Reset selection on page/search/filter change
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [page, search, priority, status]);
 
   const createMutation = useMutation({
     mutationFn: (data: any) => testcasesApi.createBusinessTest(projectId!, data),
@@ -86,8 +118,9 @@ export default function BusinessTestCasesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => testcasesApi.deleteBusinessTest(id),
-    onSuccess: () => {
+    onSuccess: (data, id) => {
       queryClient.invalidateQueries({ queryKey: ['business-tests'] });
+      setSelectedIds(prev => prev.filter(selectedId => selectedId !== id));
       addToast('success', 'Test case deleted successfully');
     },
     onError: () => {
@@ -96,10 +129,14 @@ export default function BusinessTestCasesPage() {
   });
 
   const importMutation = useMutation({
-    mutationFn: (file: File) => testcasesApi.importExcel(projectId!, file),
+    mutationFn: ({ file, groupId, groupName }: { file: File; groupId?: string; groupName?: string }) =>
+      testcasesApi.importExcel(projectId!, file, groupId, groupName),
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['business-tests'] });
+      queryClient.invalidateQueries({ queryKey: ['testcase-groups'] });
       setShowUpload(false);
+      setUploadGroupId('');
+      setUploadGroupName('');
       addToast(
         'success',
         `Imported successfully: ${res.created} created, ${res.updated} updated`
@@ -108,6 +145,78 @@ export default function BusinessTestCasesPage() {
     onError: (err: any) => {
       addToast('error', err.response?.data?.message || 'Excel import failed');
     },
+  });
+
+  // Bulk add to group mutations
+  const addToGroupMutation = useMutation({
+    mutationFn: ({ groupId, testCaseIds }: { groupId: string; testCaseIds: string[] }) =>
+      testcasesApi.addTestCasesToGroup(groupId, testCaseIds),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['testcase-group'] });
+      queryClient.invalidateQueries({ queryKey: ['testcase-groups'] });
+      setShowAddToGroupModal(false);
+      setTargetGroupId('');
+      setNewGroupNameForAdd('');
+      setSelectedIds([]);
+      addToast('success', res.message || 'Added to group successfully');
+    },
+    onError: (err: any) => {
+      addToast('error', err.response?.data?.error || 'Failed to add test cases to group');
+    }
+  });
+
+  const createGroupAndAddMutation = useMutation({
+    mutationFn: async ({ name, testCaseIds }: { name: string; testCaseIds: string[] }) => {
+      const newGroup = await testcasesApi.createGroup(projectId!, {
+        name,
+        description: `Created from selected business test cases`,
+      });
+      return testcasesApi.addTestCasesToGroup(newGroup.id, testCaseIds);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['testcase-groups'] });
+      setShowAddToGroupModal(false);
+      setTargetGroupId('');
+      setNewGroupNameForAdd('');
+      setSelectedIds([]);
+      addToast('success', 'Group created and test cases added successfully');
+    },
+    onError: (err: any) => {
+      addToast('error', err.response?.data?.name?.[0] || err.response?.data?.message || 'Failed to create group');
+    }
+  });
+
+  // Bulk Automation Generation
+  const bulkGenerateMutation = useMutation({
+    mutationFn: (testCaseIds: string[]) => testcasesApi.bulkGenerateAutomation(projectId!, testCaseIds),
+    onMutate: () => {
+      setIsBulkGenerating(true);
+    },
+    onSuccess: (res: any) => {
+      setIsBulkGenerating(false);
+      setSelectedIds([]);
+      addToast('success', res.message || 'AI step generation started in background');
+    },
+    onError: (err: any) => {
+      setIsBulkGenerating(false);
+      addToast('error', err.response?.data?.error || 'Failed to start AI step generation');
+    }
+  });
+
+  // Single automation generate mutation
+  const singleGenerateMutation = useMutation({
+    mutationFn: (id: string) => testcasesApi.generateSingleAutomation(id),
+    onMutate: (id) => {
+      setGeneratingSingleId(id);
+    },
+    onSuccess: () => {
+      setGeneratingSingleId(null);
+      addToast('success', 'Automated test generated successfully');
+    },
+    onError: (err: any) => {
+      setGeneratingSingleId(null);
+      addToast('error', err.response?.data?.error || 'Failed to generate automated test case');
+    }
   });
 
   const resetForm = () => {
@@ -142,7 +251,7 @@ export default function BusinessTestCasesPage() {
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      importMutation.mutate(file);
+      importMutation.mutate({ file, groupId: uploadGroupId, groupName: uploadGroupName });
     }
   };
 
@@ -190,6 +299,32 @@ export default function BusinessTestCasesPage() {
         </div>
       </div>
 
+      {/* Multi-Select Action Banner */}
+      {selectedIds.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+          <span className="text-sm font-medium text-blue-800">
+            {selectedIds.length} test cases selected
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setShowAddToGroupModal(true)}
+            >
+              <RiStackLine size={14} /> Add to Group
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => bulkGenerateMutation.mutate(selectedIds)}
+              loading={isBulkGenerating}
+              className="bg-blue-600 text-white hover:bg-blue-700"
+            >
+              <RiRobotLine size={14} /> Bulk Generate Automated Tests
+            </Button>
+          </div>
+        </div>
+      )}
+
       {testCases.length === 0 ? (
         <EmptyState
           icon={<RiFileExcelLine size={48} />}
@@ -206,6 +341,20 @@ export default function BusinessTestCasesPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase">
+                <th className="px-6 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={testCases.length > 0 && selectedIds.length === testCases.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedIds(testCases.map((tc: any) => tc.id));
+                      } else {
+                        setSelectedIds([]);
+                      }
+                    }}
+                    className="rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                  />
+                </th>
                 <th className="px-6 py-3">ID</th>
                 <th className="px-6 py-3">Title</th>
                 <th className="px-6 py-3">Module</th>
@@ -218,6 +367,20 @@ export default function BusinessTestCasesPage() {
             <tbody className="divide-y divide-gray-100 text-sm">
               {testCases.map((tc: any) => (
                 <tr key={tc.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(tc.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedIds([...selectedIds, tc.id]);
+                        } else {
+                          setSelectedIds(selectedIds.filter(id => id !== tc.id));
+                        }
+                      }}
+                      className="rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                    />
+                  </td>
                   <td className="px-6 py-4 font-mono text-xs font-semibold text-gray-700">{tc.tc_id}</td>
                   <td className="px-6 py-4 font-medium text-gray-900">{tc.title}</td>
                   <td className="px-6 py-4 text-gray-500">
@@ -245,7 +408,17 @@ export default function BusinessTestCasesPage() {
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-xs text-gray-400">{formatDate(tc.updated_at)}</td>
-                  <td className="px-6 py-4 text-right space-x-2">
+                  <td className="px-6 py-4 text-right space-x-1.5 flex justify-end items-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => singleGenerateMutation.mutate(tc.id)}
+                      loading={generatingSingleId === tc.id}
+                      title="Generate AI Automated Test"
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <RiRobotLine size={14} />
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => handleEdit(tc)}>
                       <RiEditLine size={14} />
                     </Button>
@@ -416,6 +589,34 @@ export default function BusinessTestCasesPage() {
             </span>
           </p>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Import into Existing Group (Optional)</label>
+            <select
+              value={uploadGroupId}
+              onChange={(e) => {
+                setUploadGroupId(e.target.value);
+                if (e.target.value) setUploadGroupName('');
+              }}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+            >
+              <option value="">-- No Group (Import to project directly) --</option>
+              {groupsList.map((g: any) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+
+            <Input
+              label="Or Import into New Group (Optional)"
+              value={uploadGroupName}
+              onChange={(e) => {
+                setUploadGroupName(e.target.value);
+                if (e.target.value) setUploadGroupId('');
+              }}
+              placeholder="Create and link to new group..."
+              className="mb-4"
+            />
+          </div>
+
           <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100/50 transition-colors relative">
             <RiFileExcelLine size={36} className="text-green-600 mb-2" />
             <span className="text-sm font-medium text-gray-700">Click to upload Excel</span>
@@ -439,6 +640,84 @@ export default function BusinessTestCasesPage() {
             <Button variant="secondary" onClick={() => setShowUpload(false)}>Cancel</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Add To Group Modal */}
+      <Modal
+        isOpen={showAddToGroupModal}
+        onClose={() => {
+          setShowAddToGroupModal(false);
+          setTargetGroupId('');
+          setNewGroupNameForAdd('');
+        }}
+        title="Add Selected Cases to Group"
+        size="md"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (targetGroupId) {
+              addToGroupMutation.mutate({ groupId: targetGroupId, testCaseIds: selectedIds });
+            } else if (newGroupNameForAdd) {
+              createGroupAndAddMutation.mutate({ name: newGroupNameForAdd, testCaseIds: selectedIds });
+            }
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Select Existing Group</label>
+            <select
+              value={targetGroupId}
+              onChange={(e) => {
+                setTargetGroupId(e.target.value);
+                if (e.target.value) setNewGroupNameForAdd('');
+              }}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">-- Choose a group --</option>
+              {groupsList.map((g: any) => (
+                <option key={g.id} value={g.id}>{g.name} ({g.test_case_count} cases)</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-gray-200"></div>
+            <span className="flex-shrink mx-4 text-gray-400 text-xs font-semibold">OR CREATE NEW GROUP</span>
+            <div className="flex-grow border-t border-gray-200"></div>
+          </div>
+
+          <Input
+            label="New Group Name"
+            value={newGroupNameForAdd}
+            onChange={(e) => {
+              setNewGroupNameForAdd(e.target.value);
+              if (e.target.value) setTargetGroupId('');
+            }}
+            placeholder="e.g., Auth Flow, Regression Set"
+          />
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => {
+                setShowAddToGroupModal(false);
+                setTargetGroupId('');
+                setNewGroupNameForAdd('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={addToGroupMutation.isPending || createGroupAndAddMutation.isPending}
+              disabled={!targetGroupId && !newGroupNameForAdd}
+            >
+              Confirm Add
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

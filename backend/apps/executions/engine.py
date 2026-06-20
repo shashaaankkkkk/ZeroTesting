@@ -31,7 +31,8 @@ class PlaywrightEngine:
         """Launch browser and set up page."""
         from playwright.async_api import async_playwright
 
-        self.playwright = await async_playwright().__aenter__()
+        self.playwright_manager = async_playwright()
+        self.playwright = await self.playwright_manager.__aenter__()
         self.browser = await self.playwright.chromium.launch(
             headless=settings.PLAYWRIGHT_HEADLESS,
         )
@@ -49,10 +50,10 @@ class PlaywrightEngine:
         }))
 
         # Capture network requests
-        self.page.on("requestfinished", lambda req: self.network_logs.append({
-            "url": req.url,
-            "method": req.method,
-            "status": req.response.status if req.response else None,
+        self.page.on("response", lambda res: self.network_logs.append({
+            "url": res.url,
+            "method": res.request.method,
+            "status": res.status,
             "timestamp": datetime.now().isoformat(),
         }))
 
@@ -73,8 +74,8 @@ class PlaywrightEngine:
                 await self.context.close()
             if self.browser:
                 await self.browser.close()
-            if self.playwright:
-                await self.playwright.__aexit__(None, None, None)
+            if self.playwright_manager:
+                await self.playwright_manager.__aexit__(None, None, None)
         except Exception as e:
             logger.warning("Error during teardown: %s", e)
 

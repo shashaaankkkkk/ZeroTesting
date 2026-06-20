@@ -201,7 +201,17 @@ export default function VisualTestBuilderPage() {
         </div>
         <div className="flex gap-2">
           {aiStatus?.enabled && (
-            <Button variant="secondary" onClick={() => setShowAiModal(true)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (testCase?.business_test_case_detail) {
+                  const b = testCase.business_test_case_detail;
+                  const template = `Title: ${b.title}\nModule: ${b.module}${b.sub_module ? ' / ' + b.sub_module : ''}\nPreconditions: ${b.preconditions || 'None'}\nManual Steps:\n${b.steps}\nExpected Result: ${b.expected_result}`;
+                  setAiPrompt(template);
+                }
+                setShowAiModal(true);
+              }}
+            >
               <RiSparkling2Line size={16} className="text-purple-600 mr-1" /> Generate with AI
             </Button>
           )}

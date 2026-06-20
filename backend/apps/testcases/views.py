@@ -9,7 +9,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.projects.models import Project
-from .models import BusinessTestCase, AutomationTestCase, AutomationStep
+from .models import BusinessTestCase, AutomationTestCase, AutomationStep, TestCaseGroup
 from .serializers import (
     BusinessTestCaseSerializer,
     BusinessTestCaseCreateSerializer,
@@ -19,6 +19,9 @@ from .serializers import (
     AutomationStepSerializer,
     StepReorderSerializer,
     ExcelImportSerializer,
+    TestCaseGroupListSerializer,
+    TestCaseGroupDetailSerializer,
+    TestCaseGroupCreateUpdateSerializer,
 )
 from .filters import BusinessTestCaseFilter, AutomationTestCaseFilter
 from .services import ScriptGeneratorService
@@ -83,7 +86,23 @@ class ExcelImportView(generics.CreateAPIView):
 
         project = Project.objects.get(id=project_id, owner=request.user)
         file = serializer.validated_data["file"]
-        result = parse_excel(file, project)
+        group_id = serializer.validated_data.get("group_id")
+        group_name = serializer.validated_data.get("group_name")
+
+        group = None
+        if group_id:
+            try:
+                group = TestCaseGroup.objects.get(id=group_id, project=project)
+            except TestCaseGroup.DoesNotExist:
+                return Response({"error": "Specified group not found in this project."}, status=status.HTTP_404_NOT_FOUND)
+        elif group_name:
+            group, _ = TestCaseGroup.objects.get_or_create(
+                project=project,
+                name=group_name,
+                defaults={"description": f"Created automatically during Excel import of {file.name}"}
+            )
+
+        result = parse_excel(file, project, group=group)
 
         return Response(result, status=status.HTTP_200_OK)
 
@@ -196,3 +215,144 @@ class StepReorderView(generics.UpdateAPIView):
             AutomationStep.objects.filter(id=step_id, test_case=test_case).update(order=order)
 
         return Response({"message": "Steps reordered successfully."})
+
+
+# ── Test Case Groups ─────────────────────────────────────────────────
+
+@extend_schema_view(
+    list=extend_schema(tags=["TestCase Groups"]),
+    create=extend_schema(tags=["TestCase Groups"]),
+)
+class TestCaseGroupListCreateView(generics.ListCreateAPIView):
+    """List and create test case groups for a project."""
+
+    def get_queryset(self):
+        return TestCaseGroup.objects.filter(
+            project_id=self.kwargs["project_id"],
+            project__owner=self.request.user,
+        )
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return TestCaseGroupCreateUpdateSerializer
+        return TestCaseGroupListSerializer
+
+    def perform_create(self, serializer):
+        project = Project.objects.get(
+            id=self.kwargs["project_id"],
+            owner=self.request.user,
+        )
+        serializer.save(project=project)
+
+
+@extend_schema_view(
+    retrieve=extend_schema(tags=["TestCase Groups"]),
+    update=extend_schema(tags=["TestCase Groups"]),
+    partial_update=extend_schema(tags=["TestCase Groups"]),
+    destroy=extend_schema(tags=["TestCase Groups"]),
+)
+class TestCaseGroupDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Get, update, or delete a testcase group."""
+
+    def get_queryset(self):
+        return TestCaseGroup.objects.filter(project__owner=self.request.user)
+
+    def get_serializer_class(self):
+        if self.request.method in ["PUT", "PATCH"]:
+            return TestCaseGroupCreateUpdateSerializer
+        return TestCaseGroupDetailSerializer
+
+
+class SingleGenerateAutomationView(generics.CreateAPIView):
+    """Generate automated test case for a single business case synchronously."""
+
+    @extend_schema(tags=["Business Test Cases"])
+    def create(self, request, pk):
+        from .services import generate_automation_for_business_case
+        try:
+            business_tc = BusinessTestCase.objects.get(id=pk, project__owner=request.user)
+        except BusinessTestCase.DoesNotExist:
+            return Response({"error": "Business test case not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            auto_tc = generate_automation_for_business_case(business_tc)
+            if auto_tc:
+                from .serializers import AutomationTestCaseDetailSerializer
+                serializer = AutomationTestCaseDetailSerializer(auto_tc)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"error": f"AI step generation failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({"error": "AI generation failed or is disabled."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GroupBulkGenerateAutomationView(generics.CreateAPIView):
+    """Bulk generate automated test cases for a group of business test cases in background."""
+
+    @extend_schema(tags=["TestCase Groups"])
+    def create(self, request, pk):
+        from .tasks import generate_automation_for_cases_task
+        try:
+            group = TestCaseGroup.objects.get(id=pk, project__owner=request.user)
+        except TestCaseGroup.DoesNotExist:
+            return Response({"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        test_case_ids = list(group.test_cases.values_list("id", flat=True))
+        if not test_case_ids:
+            return Response({"error": "Group contains no test cases."}, status=status.HTTP_400_BAD_REQUEST)
+
+        task = generate_automation_for_cases_task.delay(test_case_ids)
+        return Response({
+            "message": f"Bulk automation generation started for {len(test_case_ids)} test cases.",
+            "task_id": task.id
+        }, status=status.HTTP_202_ACCEPTED)
+
+
+class ProjectBulkGenerateAutomationView(generics.CreateAPIView):
+    """Bulk generate automated test cases from a list of business case IDs in background."""
+
+    @extend_schema(tags=["Business Test Cases"])
+    def create(self, request, project_id):
+        from .tasks import generate_automation_for_cases_task
+        test_case_ids = request.data.get("test_case_ids", [])
+        if not test_case_ids:
+            return Response({"error": "No test case IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify ownership/existence
+        valid_ids = list(BusinessTestCase.objects.filter(
+            id__in=test_case_ids,
+            project_id=project_id,
+            project__owner=request.user
+        ).values_list("id", flat=True))
+
+        if not valid_ids:
+            return Response({"error": "No valid test cases found for the given IDs in this project."}, status=status.HTTP_400_BAD_REQUEST)
+
+        task = generate_automation_for_cases_task.delay(valid_ids)
+        return Response({
+            "message": f"Bulk automation generation started for {len(valid_ids)} test cases.",
+            "task_id": task.id
+        }, status=status.HTTP_202_ACCEPTED)
+
+
+class TestCaseGroupAddTestCasesView(generics.CreateAPIView):
+    """Add business test cases to a group."""
+
+    @extend_schema(tags=["TestCase Groups"])
+    def create(self, request, pk):
+        try:
+            group = TestCaseGroup.objects.get(id=pk, project__owner=request.user)
+        except TestCaseGroup.DoesNotExist:
+            return Response({"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        test_case_ids = request.data.get("test_case_ids", [])
+        if not test_case_ids:
+            return Response({"error": "No test case IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate test cases belong to project
+        valid_cases = BusinessTestCase.objects.filter(id__in=test_case_ids, project=group.project)
+        group.test_cases.add(*valid_cases)
+
+        return Response({"message": f"Successfully added {valid_cases.count()} test cases to group."})
+
+

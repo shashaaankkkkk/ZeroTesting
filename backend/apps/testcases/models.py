@@ -138,3 +138,29 @@ class AutomationStep(BaseModel):
         if self.object_ref:
             return self.object_ref.get_playwright_locator()
         return self.target
+
+
+class TestCaseGroup(BaseModel):
+    """Group of test cases for batch execution or organization."""
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="test_case_groups",
+    )
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default="")
+    test_cases = models.ManyToManyField(
+        BusinessTestCase,
+        related_name="test_case_groups",
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "test_case_groups"
+        ordering = ["-created_at"]
+        unique_together = ["project", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.project.name})"
+

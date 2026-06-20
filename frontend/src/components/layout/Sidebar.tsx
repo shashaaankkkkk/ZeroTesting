@@ -4,7 +4,7 @@ import {
   RiDashboardLine, RiFolder3Line, RiFileTextLine, RiRobot2Line,
   RiDatabase2Line, RiPlayCircleLine, RiAlertLine, RiBarChart2Line,
   RiSettings4Line, RiLogoutBoxLine, RiGridLine, RiRecordCircleLine,
-  RiCodeSSlashLine, RiMenuFoldLine, RiMenuUnfoldLine,
+  RiCodeSSlashLine, RiMenuFoldLine, RiMenuUnfoldLine, RiStackLine,
 } from 'react-icons/ri';
 import { useAuthStore } from '../../stores/authStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -18,6 +18,7 @@ const mainNavItems = [
 const projectNavItems = [
   { path: '', label: 'Overview', icon: RiDashboardLine },
   { path: '/business-tests', label: 'Business Tests', icon: RiFileTextLine },
+  { path: '/groups', label: 'Groups', icon: RiStackLine },
   { path: '/automation-tests', label: 'Automation Tests', icon: RiRobot2Line },
   { path: '/objects', label: 'Object Repository', icon: RiGridLine },
   { path: '/test-data', label: 'Test Data', icon: RiDatabase2Line },
