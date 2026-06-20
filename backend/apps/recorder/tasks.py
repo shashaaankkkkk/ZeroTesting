@@ -139,12 +139,17 @@ async def _record(session_id, base_url):
             "description": f"Navigate to {base_url}",
         }]
 
+        # Cumulative steps list — survives page navigations
+        all_steps = list(initial_steps)
+        # Track how many JS steps we've already consumed
+        last_js_step_count = 0
+
         # Update session status
         session = RecorderService.get_session(session_id)
         if session:
             session["status"] = "recording"
             session["url"] = base_url
-            session["steps"] = initial_steps
+            session["steps"] = all_steps
             RecorderService.update_session(session_id, session)
 
         # Re-inject on navigation
@@ -223,24 +228,47 @@ async def _record(session_id, base_url):
                         if cmd_id:
                             cache.set(f"recorder_command_result_{cmd_id}", "done", 60)
 
-            # Extract recorded steps
+            # Extract NEW recorded steps (only append steps we haven't seen)
             try:
                 recorded = await page.evaluate("window.__recorded_steps || []")
-                if recorded:
-                    session["steps"] = initial_steps + recorded
+                if len(recorded) > last_js_step_count:
+                    new_steps = recorded[last_js_step_count:]
+                    all_steps.extend(new_steps)
+                    last_js_step_count = len(recorded)
+                    session["steps"] = all_steps
                     RecorderService.update_session(session_id, session)
+                elif len(recorded) < last_js_step_count:
+                    # Page navigated — JS context reset, recorded list is shorter/empty
+                    # Keep all_steps intact, reset counter for new page context
+                    last_js_step_count = len(recorded)
+                    if recorded:
+                        all_steps.extend(recorded)
+                        session["steps"] = all_steps
+                        RecorderService.update_session(session_id, session)
             except Exception:
                 pass
 
-        # Final extraction
+        # Final extraction — append any remaining new steps
         try:
             recorded = await page.evaluate("window.__recorded_steps || []")
-            session = RecorderService.get_session(session_id) or {"steps": initial_steps}
-            session["steps"] = initial_steps + recorded
+            if len(recorded) > last_js_step_count:
+                new_steps = recorded[last_js_step_count:]
+                all_steps.extend(new_steps)
+            elif recorded and len(recorded) < last_js_step_count:
+                # Page navigated during stop — append new context steps
+                all_steps.extend(recorded)
+
+            session = RecorderService.get_session(session_id) or {}
+            session["steps"] = all_steps
             session["status"] = "completed"
             RecorderService.update_session(session_id, session)
-        except Exception:
-            pass
+            logger.info("Recording %s completed with %d total steps", session_id, len(all_steps))
+        except Exception as e:
+            logger.error("Final step extraction failed: %s", e)
+            session = RecorderService.get_session(session_id) or {}
+            session["steps"] = all_steps
+            session["status"] = "completed"
+            RecorderService.update_session(session_id, session)
 
         await context.close()
         await browser.close()

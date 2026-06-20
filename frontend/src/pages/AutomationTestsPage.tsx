@@ -154,7 +154,7 @@ export default function AutomationTestsPage() {
                     )}
                   </td>
 
-                  <td className="px-6 py-4 text-gray-700 font-semibold">{test.steps_count || 0} steps</td>
+                  <td className="px-6 py-4 text-gray-700 font-semibold">{test.step_count || 0} steps</td>
                   <td className="px-6 py-4">
                     <Badge className={
                       test.source === 'recorder' ? 'bg-purple-50 text-purple-700 border border-purple-100' :

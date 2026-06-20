@@ -109,28 +109,42 @@ export default function PlaywrightRecorderPage() {
     },
   });
 
-  // Save as Test Case mutation
+  // Save as Test Case mutation — creates test case then adds steps individually
   const saveMutation = useMutation({
-    mutationFn: (data: any) =>
-      testcasesApi.createAutomationTest(projectId!, {
+    mutationFn: async (data: any) => {
+      // Step 1: Create the test case (without nested steps)
+      const testCase = await testcasesApi.createAutomationTest(projectId!, {
         name: data.name,
         description: data.description,
         source: 'recorder',
-        steps: recordedSteps.map((step, idx) => ({
+      });
+
+      // Step 2: Add each recorded step individually (proven reliable pattern)
+      const stepsToSave = recordedSteps.filter((s: any) => s.action);
+      console.log(`[Recorder Save] Saving ${stepsToSave.length} steps to test case ${testCase.id}`);
+
+      for (let idx = 0; idx < stepsToSave.length; idx++) {
+        const step = stepsToSave[idx];
+        await testcasesApi.addStep(testCase.id, {
           order: idx + 1,
           action: step.action,
-          target: step.target,
+          target: step.target || '',
           value: step.value || '',
           description: step.description || `Recorded step ${idx + 1}`,
-        })) as any,
-      }),
+          wait_timeout: 30000,
+        });
+      }
+
+      return testCase;
+    },
     onSuccess: (res) => {
       setShowSaveModal(false);
-      addToast('success', 'Test case saved successfully');
+      addToast('success', `Test case saved with ${recordedSteps.length} steps`);
       navigate(`/projects/${projectId}/automation-tests/${res.id}/builder`);
     },
     onError: (err: any) => {
-      addToast('error', err.response?.data?.message || 'Failed to save test case');
+      console.error('[Recorder Save] Error:', err);
+      addToast('error', err.response?.data?.message || err.message || 'Failed to save test case');
     },
   });
 
@@ -565,6 +579,19 @@ export default function PlaywrightRecorderPage() {
           }}
           className="space-y-4"
         >
+          {/* Step summary */}
+          <div className={`p-3 rounded-lg border text-sm flex items-center gap-2 ${
+            recordedSteps.length > 0
+              ? 'bg-green-50 border-green-200 text-green-700'
+              : 'bg-yellow-50 border-yellow-200 text-yellow-700'
+          }`}>
+            <RiTerminalBoxLine size={16} />
+            {recordedSteps.length > 0
+              ? <span><strong>{recordedSteps.length}</strong> steps captured and ready to save</span>
+              : <span>⚠ No steps were captured during recording. The test case will be created without steps.</span>
+            }
+          </div>
+
           <Input
             label="Test Name"
             value={saveForm.name}
@@ -586,7 +613,7 @@ export default function PlaywrightRecorderPage() {
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setShowSaveModal(false)} type="button">Cancel</Button>
             <Button type="submit" loading={saveMutation.isPending}>
-              Save & View
+              Save & View ({recordedSteps.length} steps)
             </Button>
           </div>
         </form>
